@@ -15,7 +15,7 @@
  *  Written by Limor Fried/Ladyada for Adafruit Industries.              *
  *  BSD license, all text above must be included in any redistribution   *
  * ***********************************************************************
- * 
+ *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
  * IR Commands:                                           *
  * Remote Key           NEC Code       Command            *
@@ -42,7 +42,7 @@
  * 8			25             green down         *
  * 9			26             blue down          *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
- * 
+ *
  * http://www.thecustomgeek.com
  * RGBW LED Controller v 3.1IR
  * Jeremy Saglimbeni - 2013
@@ -51,7 +51,7 @@
 #include "Adafruit_NECremote.h"
 #define IRpin         2
 Adafruit_NECremote remote(IRpin);
-char datain[11];
+char datain[17];
 int i;
 int stay; // delay in seconds to stay on each color in cycle mode
 int rate; // rate of color cycle
@@ -75,9 +75,6 @@ int targetw; // desired white level
 int targetr; // desired red level
 int targetg; // desired green level
 int targetb; // desired blue level
-char digit1[1];
-char digit2[1];
-char digit3[1];
 int redwake;
 int grnwake;
 int bluwake;
@@ -161,7 +158,7 @@ void setup() {
     EEPROM.write(9, cyclepause);
   }
   Serial.begin(9600); // enable serial communication at 9600 baud
-  Serial.println(F("RGBW v3.1"));
+  Serial.println(F("RGBW v3.2jw"));
   red(redwake);
   green(grnwake);
   blue(bluwake);
@@ -183,304 +180,261 @@ void loop() {
     }
 }
 void serialchk() {
-  index = 0;
-  while(Serial.available() > 0 && index < 9)
-  {
+  while (Serial.available() > 0) {
     char aChar = Serial.read();
-    datain[index] = aChar;
-    index++;
-    datain[index] = '\0'; // Keep the string NULL terminated   
+    if (aChar == 0x0A || aChar == 0x0D || index == 16) {
+      datain[index] = '\0';
+      if (index > 0)
+        parse(datain);
+      index = 0;
+    } else {
+      datain[index++] = aChar;
+    }
   }
-  String mystring = datain;
-  if (mystring != oldstring) {
+}
 
-    if (mystring.startsWith("white")) {
-    digit1[1] = datain[5];
-    digit2[1] = datain[6];
-    digit3[1] = datain[7];
-    targetw = atoi(digit2);
+void parse(char *buf) {
+  String mystring = buf;
+  if (mystring.startsWith("rgbw")) {
+    red(mystring.substring(4, 7).toInt());
+    green(mystring.substring(7, 10).toInt());
+    blue(mystring.substring(10, 13).toInt());
+    white(mystring.substring(13, 16).toInt());
+
+  } else if (mystring.startsWith("white")) {
+    targetw = mystring.substring(5).toInt();
     whiteout = targetw;
     targetw = targetw * 2.5;
-    Serial.print(F("White: ")); 
-    Serial.print(whiteout); 
+    Serial.print(F("White: "));
+    Serial.print(whiteout);
     Serial.println(F("%"));
     if (targetw >= 250) {
       targetw = 255;
     }
     halt();
     white(targetw);
-  }
-    if (mystring.startsWith("red")) {
-    digit1[1] = datain[3];
-    digit2[1] = datain[4];
-    digit3[1] = datain[5];
-    targetr = atoi(digit2);
+
+  } else if (mystring.startsWith("red")) {
+    targetr = mystring.substring(3).toInt();
     redout = targetr;
     targetr = targetr * 2.5;
-    Serial.print(F("Red: ")); 
-    Serial.print(redout); 
+    Serial.print(F("Red: "));
+    Serial.print(redout);
     Serial.println(F("%"));
     if (targetr >= 250) {
       targetr = 255;
     }
     halt();
     red(targetr);
-  }
-  if (mystring.startsWith("green")) {
-    digit1[1] = datain[5];
-    digit2[1] = datain[6];
-    digit3[1] = datain[7];
-    targetg = atoi(digit2);
+
+  } else if (mystring.startsWith("green")) {
+    targetg = mystring.substring(5).toInt();
     greenout = targetg;
     targetg = targetg * 2.5;
-    Serial.print(F("Green: ")); 
-    Serial.print(greenout); 
+    Serial.print(F("Green: "));
+    Serial.print(greenout);
     Serial.println("%");
     if (targetg >= 250) {
       targetg = 255;
     }
     halt();
     green(targetg);
-  }
-  if (mystring.startsWith("blue")) {
-    digit1[1] = datain[4];
-    digit2[1] = datain[5];
-    digit3[1] = datain[6];
-    targetb = atoi(digit2);
+
+  } else if (mystring.startsWith("blue")) {
+    targetb = mystring.substring(5).toInt();
     blueout = targetb;
     targetb = targetb * 2.5;
-    Serial.print(F("Blue: ")); 
-    Serial.print(blueout); 
+    Serial.print(F("Blue: "));
+    Serial.print(blueout);
     Serial.println(F("%"));
     if (targetb>= 250) {
       targetb = 255;
     }
     halt();
     blue(targetb);
-  }
-    
-    if (mystring.startsWith("goblue")) {
-      Serial.println(F("Blue"));
-      halt();
-      blue(255);
-      red(0);
-      green(0);
-    }
-    
-    if (mystring.startsWith("gogreen")) {
-      Serial.println(F("Green")); 
-      halt();
-      green(255);
-      red(0);
-      blue(0);
-    }
-    
-    if (mystring.startsWith("gored")) {
-      Serial.println(F("Red"));
-      halt();
-      red(255);
-      green(0);
-      blue(0);
-    }
 
-    if (mystring.startsWith("cycle")) {
-      Serial.println(F("Cycle Started!"));
-      green(0);
-      blue(0);
-      red(255);
-      cyclego = 1;
+  } else if (mystring == "goblue") {
+    Serial.println(F("Blue"));
+    halt();
+    blue(255);
+    red(0);
+    green(0);
+
+  } else if (mystring == "gogreen") {
+    Serial.println(F("Green"));
+    halt();
+    green(255);
+    red(0);
+    blue(0);
+
+  } else if (mystring == "gored") {
+    Serial.println(F("Red"));
+    halt();
+    red(255);
+    green(0);
+    blue(0);
+
+  } else if (mystring == "cycle") {
+    Serial.println(F("Cycle Started!"));
+    green(0);
+    blue(0);
+    red(255);
+    cyclego = 1;
+    EEPROM.write(8, cyclego);
+
+  } else if (mystring == "magenta") {
+    Serial.println(F("Magenta"));
+    halt();
+    magenta();
+
+  } else if (mystring == "cyan") {
+    Serial.println(F("Cyan"));
+    halt();
+    cyan();
+
+  } else if (mystring == "gold") {
+    Serial.println(F("Gold"));
+    halt();
+    gold();
+
+  } else if (mystring == "rgbwhite") {
+    Serial.println(F("RGB White"));
+    halt();
+    rgbwhite();
+
+  } else if (mystring == "orange") {
+    Serial.println(F("Orange"));
+    halt();
+    orange();
+
+  } else if (mystring == "ltblue") {
+    Serial.println(F("Light Blue"));
+    halt();
+    ltblue();
+
+  } else if (mystring == "ltgreen") {
+    Serial.println(F("Light Green"));
+    halt();
+    ltgreen();
+
+  } else if (mystring == "violet") {
+    Serial.println(F("Violet"));
+    halt();
+    violet();
+
+  } else if (mystring == "pink") {
+    Serial.println(F("Pink"));
+    halt();
+    pink();
+
+  } else if (mystring == "rgbww") {
+    Serial.println(F("Warm White"));
+    halt();
+    rgbww();
+
+  } else if (mystring.startsWith("rate")) {
+    rate = mystring.substring(4).toInt();
+    Serial.print(F("Rate: "));
+    Serial.println(rate);
+    EEPROM.write(2, rate);
+
+  } else if (mystring == "pause") {
+      cyclego = 0;
       EEPROM.write(8, cyclego);
-    }
-    if (mystring.startsWith("magenta")) {
-      Serial.println(F("Magenta"));
-      halt();
-      magenta();
-    }
-    if (mystring.startsWith("cyan")) {
-      Serial.println(F("Cyan"));
-      halt();
-      cyan();
-    }
-    if (mystring.startsWith("gold")) {
-      Serial.println(F("Gold"));
-      halt();
-      gold();
-    }
-    if (mystring.startsWith("rgbwhite")) {
-      Serial.println(F("RGB White"));
-      halt();
-      rgbwhite();
-    }
-    if (mystring.startsWith("orange")) {
-      Serial.println(F("Orange"));
-      halt();
-      orange();
-    }
-    if (mystring.startsWith("ltblue")) {
-      Serial.println(F("Light Blue"));
-      halt();
-      ltblue();
-    }
-    if (mystring.startsWith("ltgreen")) {
-      Serial.println(F("Light Green"));
-      halt();
-      ltgreen();
-    }
-    if (mystring.startsWith("violet")) {
-      Serial.println(F("Violet"));
-      halt();
-      violet();
-    }
-    if (mystring.startsWith("pink")) {
-      Serial.println(F("Pink"));
-      halt();
-      pink();
-    }
-    if (mystring.startsWith("rgbww")) {
-      Serial.println(F("Warm White"));
-      halt();
-      rgbww();
-    }
+      cyclepause = 1;
+      EEPROM.write(9, cyclepause);
+      mode = 8;
+      Serial.println(F("Cycle Paused."));
+      EEPROM.write(3, redlev);
+      EEPROM.write(4, grnlev);
+      EEPROM.write(5, blulev);
+      EEPROM.write(6, whtlev);
 
-    if (mystring.startsWith("rate")) {
-      digit1[1] = datain[4];
-      digit2[1] = datain[5];
-      digit3[1] = datain[6];
-      rate = atoi(digit2);
-      Serial.print(F("Rate: ")); 
-      Serial.println(rate);
-      EEPROM.write(2, rate);
+  } else if (mystring.startsWith("stay")) {
+    stay = mystring.substring(4).toInt() * 1000;
+    Serial.print(F("Stay: "));
+    Serial.print(stay / 1000);
+    Serial.println(F(" Seconds"));
+
+  } else if (mystring.startsWith("ramp")) {
+    ramp = mystring.substring(4).toInt();
+    Serial.print(F("Ramp: "));
+    Serial.println(ramp);
+    EEPROM.write(1, ramp);
+
+  } else if (mystring == "bright") {
+    targetr = (redlev + 10);
+    targetg = (grnlev + 10);
+    targetb = (blulev + 10);
+    if (targetr >= 250) {
+      targetr = 255;
     }
-    
-    if (mystring.startsWith("pause")) {
-        cyclego = 0;
-        EEPROM.write(8, cyclego);
-        cyclepause = 1;
-        EEPROM.write(9, cyclepause);
-        mode = 8;
-        Serial.println(F("Cycle Paused."));
-        EEPROM.write(3, redlev);
-        EEPROM.write(4, grnlev);
-        EEPROM.write(5, blulev);
-        EEPROM.write(6, whtlev);
+    if (targetg >= 250) {
+      targetg = 255;
     }
-    
-    if (mystring.startsWith("stay")) {
-      digit1[1] = datain[4];
-      digit2[1] = datain[5];
-      digit3[1] = datain[6];
-      stay = atoi(digit2) * 1000;
-      Serial.print(F("Stay: ")); 
-      Serial.print(stay / 1000); 
-      Serial.println(F(" Seconds"));
+    if (targetb >= 250) {
+      targetb = 255;
     }
-    if (mystring.startsWith("ramp")) {
-      digit1[1] = datain[4];
-      digit2[1] = datain[5];
-      digit3[1] = datain[6];
-      ramp = atoi(digit2);
-      Serial.print(F("Ramp: ")); 
+    Serial.print(F("Brighten: "));
+    Serial.print(F("Red:"));
+    Serial.print(targetr);
+    Serial.print(F(" Green:"));
+    Serial.print(targetg);
+    Serial.print(F(" Blue:"));
+    Serial.println(targetb);
+    red(targetr);
+    green(targetg);
+    blue(targetb);
+
+  } else if (mystring == "dim") {
+    targetr = (redlev - 10);
+    targetg = (grnlev - 10);
+    targetb = (blulev - 10);
+    if (targetr <= 0) {
+      targetr = 0;
+    }
+    if (targetg <= 0) {
+      targetg = 0;
+    }
+    if (targetb <= 0) {
+      targetb = 0;
+    }
+    Serial.print(F("Dim: "));
+    Serial.print(F("Red:"));
+    Serial.print(targetr);
+    Serial.print(F(" Green:"));
+    Serial.print(targetg);
+    Serial.print(F(" Blue:"));
+    Serial.println(targetb);
+    red(targetr);
+    green(targetg);
+    blue(targetb);
+
+  } else if (mystring == "alloff") {
+    halt();
+    Serial.println(F("All LED's Off!"));
+    red(0);
+    green(0);
+    blue(0);
+    white(0);
+
+  } else if (mystring.startsWith("stat")) {
+    if (cyclego == 1) {
+      Serial.println(F("Cycle Mode"));
+     }
+    else {
+      Serial.print(F("Red Level = "));
+      Serial.print(redlev);
+      Serial.print(F(" Green Level = "));
+      Serial.print(grnlev);
+      Serial.print(F(" Blue Level = "));
+      Serial.print(blulev);
+      Serial.print(F(" White Level = "));
+      Serial.print(whtlev);
+      Serial.print(F(" Ramp Rate =  "));
       Serial.println(ramp);
-      EEPROM.write(1, ramp);
     }
-    if (mystring.startsWith("bright")) {
-      targetr = (redlev + 10);
-      targetg = (grnlev + 10);
-      targetb = (blulev + 10);
-      if (targetr >= 250) {
-        targetr = 255;
-      }
-      if (targetg >= 250) {
-        targetg = 255;
-      }
-      if (targetb >= 250) {
-        targetb = 255;
-      }
-      Serial.print(F("Brighten: "));
-      Serial.print(F("Red:"));
-      Serial.print(targetr);
-      Serial.print(F(" Green:")); 
-      Serial.print(targetg);
-      Serial.print(F(" Blue:")); 
-      Serial.println(targetb);
-      red(targetr);
-      green(targetg);
-      blue(targetb);
-    }
-    if (mystring.startsWith("dim")) {
-      targetr = (redlev - 10);
-      targetg = (grnlev - 10);
-      targetb = (blulev - 10);
-      if (targetr <= 0) {
-        targetr = 0;
-      }
-      if (targetg <= 0) {
-        targetg = 0;
-      }
-      if (targetb <= 0) {
-        targetb = 0;
-      }
-      Serial.print(F("Dim: "));
-      Serial.print(F("Red:")); 
-      Serial.print(targetr);
-      Serial.print(F(" Green:")); 
-      Serial.print(targetg);
-      Serial.print(F(" Blue:")); 
-      Serial.println(targetb);
-      red(targetr);
-      green(targetg);
-      blue(targetb);
-    }
-    /*
-if (mystring.startsWith("more")) {
-     stay = stay + 1000;
-     }
-     if (mystring.startsWith("less")) {
-     stay = stay - 1000;
-     if (stay < 0) {
-     stay = 0;
-     }
-     }
-     if (mystring.startsWith("fast")) {
-     rate++;
-     }
-     if (mystring.startsWith("slow")) {
-     rate--;
-     if (rate < 0) {
-     rate = 0;
-     }
-     }
-     */
-    if (mystring.startsWith("alloff")) {
-      halt();
-      Serial.println(F("All LED's Off!"));
-      red(0);
-      green(0);
-      blue(0);
-      white(0);
-    }
-
-    if (mystring.startsWith("stat")) {
-      if (cyclego == 1) {
-        Serial.println(F("Cycle Mode"));
-       }
-      else {
-        Serial.print(F("Red Level = "));
-        Serial.print(redlev);
-        Serial.print(F(" Green Level = "));
-        Serial.print(grnlev);
-        Serial.print(F(" Blue Level = "));
-        Serial.print(blulev);
-        Serial.print(F(" White Level = "));
-        Serial.print(whtlev);
-        Serial.print(F(" Ramp Rate =  "));
-        Serial.println(ramp);
-      }
-    }
-
-    datain[1] = 0;
   }
-  mystring = oldstring;
 }
 
 
@@ -887,7 +841,7 @@ void manual() { // manual modes
     cyclego = 0;
     EEPROM.write(8, cyclego);
     mode = 0;
-  } 
+  }
 }
 void alloff() {
   red(0);
@@ -1075,11 +1029,11 @@ void remoteck() {
       targetb = 0;
     }
     Serial.print(F("Dim: "));
-    Serial.print(F("Red:")); 
+    Serial.print(F("Red:"));
     Serial.print(targetr);
-    Serial.print(F(" Green:")); 
+    Serial.print(F(" Green:"));
     Serial.print(targetg);
-    Serial.print(F(" Blue:")); 
+    Serial.print(F(" Blue:"));
     Serial.println(targetb);
     red(targetr);
     green(targetg);
@@ -1099,11 +1053,11 @@ void remoteck() {
       targetb = 255;
     }
     Serial.print(F("Brighten: "));
-    Serial.print(F("Red:")); 
+    Serial.print(F("Red:"));
     Serial.print(targetr);
-    Serial.print(F(" Green:")); 
+    Serial.print(F(" Green:"));
     Serial.print(targetg);
-    Serial.print(F(" Blue:")); 
+    Serial.print(F(" Blue:"));
     Serial.println(targetb);
     red(targetr);
     green(targetg);
